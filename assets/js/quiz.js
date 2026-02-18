@@ -41,8 +41,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
-
 /*
+
 document.addEventListener('DOMContentLoaded', function() {
   const form = document.getElementById('quiz_form');
 
@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 });
-
+*/
 
 document.addEventListener('DOMContentLoaded', function() {
   const questions = document.querySelectorAll('.quiz_questions .quiz_question');
@@ -111,4 +111,4 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 });
-*/
+
