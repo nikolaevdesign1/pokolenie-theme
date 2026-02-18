@@ -490,7 +490,59 @@ function GetUserData($userID = false) {
 
 }
 
-
+/**
+ * Build contact custom_fields_values for amo CRM (shared by EditedContact and AddLead).
+ *
+ * @param array  $userData     From GetUserData().
+ * @param string $clearedPhone Phone digits only.
+ * @return array
+ */
+function build_amo_contact_custom_fields( $userData, $clearedPhone ) {
+	$d = $userData['data'] ?? [];
+	$u = $userData['user'] ?? [];
+	$g = $userData['guardian'] ?? [];
+	$m = $userData['main'] ?? [];
+	$is_old_label = ( isset($m['is_old']) && $m['is_old'] === 'yes' ) ? 'Да' : 'Нет';
+	$passport_val = $u['passport'] ?? '';
+	$passport_val = is_array($passport_val) && ! empty($passport_val['url']) ? $passport_val['url'] : ( is_scalar($passport_val) ? (string) $passport_val : '' );
+	$child_doc_val = $u['child_doc'] ?? '';
+	$child_doc_val = is_array($child_doc_val) && ! empty($child_doc_val['url']) ? $child_doc_val['url'] : ( is_scalar($child_doc_val) ? (string) $child_doc_val : '' );
+	return [
+		['field_id' => 173425, 'values' => [['value' => $clearedPhone]]],
+		['field_id' => 173427, 'values' => [['value' => trim($u['email'] ?? '')]]],
+		['field_id' => 495267, 'values' => [['value' => trim($u['telegram'] ?? '')]]],
+		['field_id' => 536525, 'values' => [['value' => trim($u['vk'] ?? '')]]],
+		['field_id' => 495259, 'values' => [['value' => trim($u['name'] ?? '')]]],
+		['field_id' => 495257, 'values' => [['value' => trim($d['formentor'] ?? '')]]],
+		['field_id' => 495263, 'values' => [['value' => trim($u['birthday'] ?? '')]]],
+		['field_id' => 528891, 'values' => [['value' => get_age($u['birthday'] ?? '')]]],
+		['field_id' => 528903, 'values' => [['value' => trim($u['city'] ?? '')]]],
+		['field_id' => 500205, 'values' => [['value' => $is_old_label]]],
+		['field_id' => 556051, 'values' => [['value' => trim($g['name'] ?? '')]]],
+		['field_id' => 556053, 'values' => [['value' => trim($g['phone'] ?? '')]]],
+		['field_id' => 556055, 'values' => [['value' => trim($g['email'] ?? '')]]],
+		['field_id' => 550459, 'values' => [['value' => trim($passport_val)]]],
+		['field_id' => 550461, 'values' => [['value' => trim($child_doc_val)]]],
+		['field_id' => 495265, 'values' => [['value' => trim($d['question_2'] ?? '')]]],
+		['field_id' => 531033, 'values' => [['value' => trim($d['question_3'] ?? '')]]],
+		['field_id' => 531035, 'values' => [['value' => trim($d['found_name'] ?? '')]]],
+		['field_id' => 550457, 'values' => [['value' => trim($d['question_2'] ?? '')]]],
+		['field_id' => 550465, 'values' => [['value' => trim($d['question_2'] ?? '')]]],
+		['field_id' => 550467, 'values' => [['value' => trim($d['question_3'] ?? '')]]],
+		['field_id' => 550469, 'values' => [['value' => trim($d['question_4'] ?? '')]]],
+		['field_id' => 550471, 'values' => [['value' => trim($d['question_5'] ?? '')]]],
+		['field_id' => 550473, 'values' => [['value' => trim($d['question_6'] ?? '')]]],
+		['field_id' => 550475, 'values' => [['value' => trim($d['question_7'] ?? '')]]],
+		['field_id' => 550477, 'values' => [['value' => trim($d['question_8'] ?? '')]]],
+		['field_id' => 550479, 'values' => [['value' => trim($d['question_9'] ?? '')]]],
+		['field_id' => 550481, 'values' => [['value' => trim($d['question_10'] ?? '')]]],
+		['field_id' => 550483, 'values' => [['value' => trim($d['question_11'] ?? '')]]],
+		['field_id' => 550485, 'values' => [['value' => trim($d['question_12'] ?? '')]]],
+		['field_id' => 550487, 'values' => [['value' => trim($d['question_13'] ?? '')]]],
+		['field_id' => 550489, 'values' => [['value' => trim($d['question_14'] ?? '')]]],
+		['field_id' => 550491, 'values' => [['value' => trim($d['question_15'] ?? '')]]],
+	];
+}
 
 
 
@@ -648,111 +700,14 @@ if ( ! is_wp_error($application_id) && $application_id ) {
             require_once $_SERVER['DOCUMENT_ROOT'].'/amo/AmoClassEA.php';
             
             $AmoEA = new AmoClassEA();
-            
             $clearedPhone = preg_replace('/[^0-9]/', '', $userData['user']['phone']);
+            $customFields = build_amo_contact_custom_fields($userData, $clearedPhone);
 
             $AmoParams = [
                 'amo_id' => $userData['main']['amo_id'],
                 'phone' => $clearedPhone,
                 'first_name' => trim($userData['user']['name']),
-                'custom_fields_values' => [
-                    [
-                        'field_id' => 173425,
-                        'values' => [
-                            [
-                                'value' => $clearedPhone
-                            ]
-                        ]
-                    ],
-                    [
-                        'field_id' => 173427,
-                        'values' => [
-                            [
-                                'value' => trim($userData['user']['email'])
-                            ]
-                        ]
-                    ],
-                    [
-                        'field_id' => 495267,
-                        'values' => [
-                            [
-                                'value' => trim($userData['user']['telegram'])
-                            ]
-                        ]
-                    ],
-                    [
-                        'field_id' => 536525,
-                        'values' => [
-                            [
-                                'value' => trim($userData['user']['vk'])
-                            ]
-                        ]
-                    ],
-                    [
-                        'field_id' => 495259,
-                        'values' => [
-                            [
-                                'value' => trim($userData['user']['name'])
-                            ]
-                        ]
-                    ],
-                    [
-                        'field_id' => 495257,
-                        'values' => [
-                            [
-                                'value' => trim($userData['data']['formentor'])
-                            ]
-                        ]
-                    ],
-                    [
-                        'field_id' => 495263,
-                        'values' => [
-                            [
-                                'value' => trim($userData['user']['birthday'])
-                            ]
-                        ]
-                    ],
-                    [
-                        'field_id' => 528891, // возраст
-                        'values' => [
-                            [
-                                'value' => get_age($userData['user']['birthday'])
-                            ]
-                        ]
-                    ],
-                    [
-                        'field_id' => 528903, // Город проживания
-                        'values' => [
-                            [
-                                'value' => trim($userData['user']['city'])
-                            ]
-                        ]
-                    ],
-                    [
-                        'field_id' => 495265,
-                        'values' => [
-                            [
-                                'value' => trim($userData['data']['question_2'])
-                            ]
-                        ]
-                    ],
-                    [
-                        'field_id' => 531033,
-                        'values' => [
-                            [
-                                'value' => trim($userData['data']['question_3'])
-                            ]
-                        ]
-                    ],
-                    /*[
-                        'field_id' => 531035,
-                        'values' => [
-                            [
-                                'value' => trim($userData['data']['found_name'])
-                            ]
-                        ]
-                    ],*/
-                ],
+                'custom_fields_values' => $customFields,
                 'note' => $notesModifiedFields
             ];
 
@@ -760,8 +715,8 @@ if ( ! is_wp_error($application_id) && $application_id ) {
 
             $editedLead = $AmoEA->EditedLead([[
                 'id'=>(int)$userData['main']['amo_id'],
-                'status_id'=>(int)'75253982',
-                'pipeline_id' => (int)'9395722',
+                'status_id' => 75253982,
+                'pipeline_id' => 9395722,
                 'tags_to_add'=>[['name'=>'Пользователь отредактировал данные']],
             ]]);
         
@@ -770,39 +725,8 @@ if ( ! is_wp_error($application_id) && $application_id ) {
             
             $AmoEA = new AmoClassEA();
 
-            $noteToAmo = "ФИО: ".$userData['main']['name']."\nЕсть 18 лет: ".(($userData['main']['is_old'] == 'yes') ? 'Да' : 'Нет')."\n\n";
-            foreach($userData as $k => $items) {
-                if($k == 'main') continue;
-                if($k == 'guardian' && !$userData['guardian']['phone']) continue;
-                if($k == 'guardian') {
-                    $noteToAmo .= "ОПЕКУН:\n\n";
-                }
-                if($k == 'user') {
-                    $noteToAmo .= "УЧЕНИК:\n\n";
-                }
-                if($k == 'data') {
-                    $noteToAmo .= "АНКЕТА:\n\n";
-                }
-                foreach($items as $itemKey => $itemValue) {
-                    $itemLabel = $itemKey;
-                    if($allFields[$k]) {
-                        foreach($allFields[$k]['sub_fields'] as $field) {
-                            if($field['name'] == $itemKey) {
-                                $itemLabel = $field['label'];
-                            }
-                        }
-                    }
-                    $noteToAmo .= $itemLabel.":\n".$itemValue."\n\n";
-                }
-                $noteToAmo .= "____________________________\n\n";
-            }
-
-            if($userData['main']['amo_id']){
-                $noteToAmo .= "Предыдущая заявка:\nhttps://mainpokolenie.amocrm.ru/leads/detail/".$userData['main']['amo_id']."\n\n";
-                $noteToAmo .= "____________________________\n\n";
-            }
-
             $clearedPhone = preg_replace('/[^0-9]/', '', $userData['user']['phone']);
+            $customFields = build_amo_contact_custom_fields($userData, $clearedPhone);
 
             $AmoParams = array(
                 'responsible_user_id' => '11857690',
@@ -810,7 +734,6 @@ if ( ! is_wp_error($application_id) && $application_id ) {
                     'title' => 'Новый лид с сайта',
                     'pipeline_id' => '9395722',
                     'status_id' => '75253982',
-                    //'custom_fields_values' => [],
                     'tags' => [
                         ['name' => trim($userData['data']['formentor'])],
                         ['name' => trim($userData['data']['city'])]
@@ -818,109 +741,9 @@ if ( ! is_wp_error($application_id) && $application_id ) {
                 ),
                 'contacts' => array(
                     'first_name' => trim($userData['user']['name']),
-                    'custom_fields_values' => [
-                        [
-                            'field_id' => 173425,
-                            'values' => [
-                                [
-                                    'value' => $clearedPhone
-                                ]
-                            ]
-                        ],
-                        [
-                            'field_id' => 173427,
-                            'values' => [
-                                [
-                                    'value' => trim($userData['user']['email'])
-                                ]
-                            ]
-                        ],
-                        [
-                            'field_id' => 495267,
-                            'values' => [
-                                [
-                                    'value' => trim($userData['user']['telegram'])
-                                ]
-                            ]
-                        ],
-                        [
-                            'field_id' => 495259,
-                            'values' => [
-                                [
-                                    'value' => trim($userData['user']['name'])
-                                ]
-                            ]
-                        ],
-                        [
-                            'field_id' => 495257,
-                            'values' => [
-                                [
-                                    'value' => trim($userData['data']['formentor'])
-                                ]
-                            ]
-                        ],
-                        [
-                            'field_id' => 495263,
-                            'values' => [
-                                [
-                                    'value' => trim($userData['user']['birthday'])
-                                ]
-                            ]
-                        ],
-                        [
-                            'field_id' => 528891, // возраст
-                            'values' => [
-                                [
-                                    'value' => get_age($userData['user']['birthday'])
-                                ]
-                            ]
-                        ],
-                        [
-                            'field_id' => 528903, // Город проживания
-                            'values' => [
-                                [
-                                    'value' => trim($userData['user']['city'])
-                                ]
-                            ]
-                        ],
-                        [
-                            'field_id' => 495265,
-                            'values' => [
-                                [
-                                    'value' => trim($userData['data']['question_2'])
-                                ]
-                            ]
-                        ],
-                        [
-                            'field_id' => 531033,
-                            'values' => [
-                                [
-                                    'value' => trim($userData['data']['question_3'])
-                                ]
-                            ]
-                        ],
-                        [
-                            'field_id' => 531035,
-                            'values' => [
-                                [
-                                    'value' => trim($userData['data']['found_name'])
-                                ]
-                            ]
-                        ],
-                    ],
-                    /*'_embedded' => [
-                        'tags' => [
-                            [
-                                'name' => trim($userData['data']['formentor']),
-                            ],
-                            [
-                                'name' => trim($userData['data']['city']),
-                            ]
-                        ]
-                    ]*/
+                    'custom_fields_values' => $customFields,
                 ),
                 'phone' => $clearedPhone,
-                'note' => $noteToAmo
             );
 
             if($userData['main']['amo_id']){
