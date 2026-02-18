@@ -365,8 +365,38 @@ class AmoClassEA {
 		return $lead;
 
 	}
-    
-    
+
+
+	## ПОИСК КОНТАКТА ПО TELEGRAM-НИКУ ##
+	## Добавляет @ перед ником (если ещё нет), ищет через GET /api/v4/contacts?query=@nick&with=leads.
+	## Возвращает первый найденный контакт с _embedded.leads или null.
+	public function FindContactByTelegram($telegram = '') {
+
+		$telegram = trim((string) $telegram);
+		if ( $telegram === '' ) return null;
+
+		$query = (strpos($telegram, '@') === 0) ? $telegram : '@' . $telegram;
+
+		$response = $this->CurlAction(
+			'/api/v4/contacts',
+			[
+				'query' => $query,
+				'with'  => 'leads',
+			],
+			[
+				'Content-Type: application/json',
+				'Authorization: Bearer ' . $this->access_token,
+			],
+			'GET'
+		);
+
+		if ( empty($response->_embedded->contacts[0]) ) {
+			return null;
+		}
+
+		return $response->_embedded->contacts[0];
+
+	}
 
 
 }

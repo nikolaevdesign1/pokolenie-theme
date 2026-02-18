@@ -572,216 +572,197 @@ function getCustomUserFields() {
 
 }
 
-add_action('template_redirect', function() {
-    if ( isset($_POST['submit_brief']) && is_user_logged_in() ) {
-        
-        $notesModifiedFields = "";
-        
-        $user_id = get_current_user_id();
-
-        // Берём текущие значения группы "date"
-        $date_group = get_field('data', 'user_' . $user_id);
-        
-        $sendAMO = false;
-        if($date_group['formentor'] != sanitize_text_field($_POST['formentor'])){
-            $sendAMO = true;
-        }
-
-        if ( !is_array($date_group) ) {
-            $date_group = [];
-        }
-
-        // Сохраняем formentor
-        if ( isset($_POST['formentor']) ) {
-            $date_group['formentor'] = sanitize_text_field($_POST['formentor']);
-        }
-        
-        $allFields = GetCustomUserFields();
-
-        // Сохраняем вопросы question_2 ... question_15
-        for ($i = 2; $i <= 15; $i++) {
-            $field_name = 'question_' . $i;
-            if ( isset($_POST[$field_name]) ) {
-                if($date_group[$field_name] != sanitize_text_field($_POST[$field_name])){
-                    $itemLabel = '';
-                    foreach($allFields['data']['sub_fields'] as $fieldItem){
-                        if($fieldItem['name'] == $field_name){
-                            $itemLabel = $fieldItem['label'];
-                        }
-                    }
-                    $notesModifiedFields .= "Изменено поле (".$itemLabel.") \nСтарое значение: ".$date_group[$field_name]." \nНовое значение: ".sanitize_text_field($_POST[$field_name])."\n\n____________________________\n\n";
-                }
-                $date_group[$field_name] = sanitize_text_field($_POST[$field_name]);
-            }
-        }
-
-        // Системное поле
-        $date_group['системное_поле'] = '123';
-
-        // Обновляем всю группу
-        update_field('data', $date_group, 'user_' . $user_id);
-        update_field('status', 'step1', 'user_'.get_current_user_id());
-        
-		
-		
-		
-		
-	////Сохранение заявки в пост старт
-	$is_first_application = empty($has_previous_applications);
-$application_type = $is_first_application ? 'new' : 'update';
-
-// Берём ФИО пользователя из ACF user
-$user_group = get_field('user', 'user_' . $user_id);
-$user_name  = $user_group['name'] ?? '';
-
-// Берём наставника из ACF user
-$data_group_user = get_field('data', 'user_' . $user_id);
-$mentor_name     = $data_group_user['formentor'] ?? '';
-
-// Создаём НОВУЮ заявку ВСЕГДА
-$application_id = wp_insert_post([
-    'post_type'   => 'application',
-    'post_status' => 'publish',
-    'post_title'  =>
-        ($is_first_application ? 'Новая заявка' : 'Обновление заявки')
-        . ' — ' . $user_name
-        . ' — ' . current_time('d.m.Y H:i'),
-]);
-
-if ( ! is_wp_error($application_id) && $application_id ) {
-
-    // === Служебные поля ===
-    update_post_meta($application_id, 'app_user', $user_name); // ТЕКСТ
-    update_post_meta($application_id, 'application_type', $application_type);
-    update_post_meta($application_id, 'created_at', current_time('mysql'));
-
-    // === Контакты (из ACF user) ===
-    update_post_meta($application_id, 'phone', $user_group['phone'] ?? '');
-    update_post_meta($application_id, 'email', $user_group['email'] ?? '');
-
-    // === Наставник (ТЕКСТ, не ID) ===
-    update_post_meta($application_id, 'coach', $mentor_name);
-
-    // === Вопросы 3–15 (из $date_group формы) ===
-    for ( $i = 3; $i <= 15; $i++ ) {
-        $key = 'question_' . $i;
-        if ( ! empty($date_group[$key]) ) {
-            update_post_meta(
-                $application_id,
-                $key,
-                sanitize_textarea_field($date_group[$key])
-            );
-        }
-    }
-
-    // === Уведомление ===
-    wp_mail(
-        get_option('admin_email'),
-        $is_first_application ? 'Новая заявка' : 'Обновление заявки',
-        $is_first_application
-            ? 'Поступила новая заявка от ' . $user_name
-            : 'Пользователь отправил обновление заявки: ' . $user_name
-    );
+/**
+ * Ошибка: Telegram-ник не найден или не совпадает (контакт не найден, нет лидов в воронке, только закрытые лиды).
+ * TODO: реализовать отображение ошибки в UI.
+ */
+function show_brief_error_tg_nickname_incorrect() {
+    // TODO: реализовать отображение ошибки «Telegram-ник не найден / не совпадает»
 }
 
-		
-	////Сохранение заявки в пост финиш
-		
-		
-		
-		
-		
-		
-		
-		
-        $userData = GetUserData();
-        
-        if(!$sendAMO && $notesModifiedFields && $userData['main']['amo_id']){
-            require_once $_SERVER['DOCUMENT_ROOT'].'/amo/AmoClassEA.php';
-            
-            $AmoEA = new AmoClassEA();
-            $clearedPhone = preg_replace('/[^0-9]/', '', $userData['user']['phone']);
-            $customFields = build_amo_contact_custom_fields($userData, $clearedPhone);
+/**
+ * Ошибка: повторная отправка анкеты невозможна (есть активный лид, но не в статусе 833).
+ * TODO: реализовать отображение ошибки в UI.
+ */
+function show_brief_error_refill_disabled() {
+    // TODO: реализовать отображение ошибки «Повторная отправка анкеты невозможна»
+}
 
-            $AmoParams = [
-                'amo_id' => $userData['main']['amo_id'],
-                'phone' => $clearedPhone,
-                'first_name' => trim($userData['user']['name']),
-                'custom_fields_values' => $customFields,
-                'note' => $notesModifiedFields
-            ];
-
-            $leadAdd = $AmoEA->EditedContact($AmoParams);
-
-            $editedLead = $AmoEA->EditedLead([[
-                'id'=>(int)$userData['main']['amo_id'],
-                'status_id' => 75253982,
-                'pipeline_id' => 9395722,
-                'tags_to_add'=>[['name'=>'Пользователь отредактировал данные']],
-            ]]);
-        
-        } else if(!$userData['main']['amo_id'] || $sendAMO) {
-            require_once $_SERVER['DOCUMENT_ROOT'].'/amo/AmoClassEA.php';
-            
-            $AmoEA = new AmoClassEA();
-
-            $clearedPhone = preg_replace('/[^0-9]/', '', $userData['user']['phone']);
-            $customFields = build_amo_contact_custom_fields($userData, $clearedPhone);
-
-            $AmoParams = array(
-                'responsible_user_id' => '11857690',
-                'leads' => array(
-                    'title' => 'Новый лид с сайта',
-                    'pipeline_id' => '9395722',
-                    'status_id' => '75253982',
-                    'tags' => [
-                        ['name' => trim($userData['data']['formentor'])],
-                        ['name' => trim($userData['data']['city'])]
-                    ]
-                ),
-                'contacts' => array(
-                    'first_name' => trim($userData['user']['name']),
-                    'custom_fields_values' => $customFields,
-                ),
-                'phone' => $clearedPhone,
-            );
-
-            if($userData['main']['amo_id']){
-                $AmoParams['contacts']['custom_fields_values'][] = [
-                    'field_id' => 529631,
-                    'values' => [
-                        [
-                            'value' => 'https://mainpokolenie.amocrm.ru/leads/detail/'.$userData['main']['amo_id'],
-                        ]
-                    ]
-                ];
-            }
-
-            $leadAdd = $AmoEA->AddLead($AmoParams);
-            //dump($leadAdd);
-
-            if($leadAdd[0]->id) {
-                update_field('amo_id', $leadAdd[0]->id, 'user_'.get_current_user_id());
-            }
-        } else {
-            
-        }
-
-     if ( !wp_doing_ajax() ) {
-    ?>
-    <script>
-        // Открыть новую вкладку с Telegram
-       // window.open('https://t.me/Pokolenez_bot', '_blank');
-        // Перейти на страницу статуса в текущей вкладке
-        window.location.href = '<?php echo home_url('/статус/'); ?>';
-    </script>
-    <?php
+/**
+ * Переход в Telegram-бот. Только редирект, без логики AmoCRM.
+ * TODO: вызвать при нажатии на кнопку «Перейти в телеграм бот» (например, добавить template_redirect с проверкой $_POST['go_tg_bot']).
+ */
+function handle_redirect_to_tg_bot() {
+    wp_redirect( 'https://t.me/Pokolenez_bot' );
     exit;
 }
 
-		
+/**
+ * Обработчик «Сохранить» анкету.
+ *
+ * Флоу:
+ * 1. Ищем контакт в AmoCRM по Telegram-нику (user.telegram, с @).
+ * 2. Фильтруем лиды контакта по pipeline_id == 9395722.
+ * 3. Выбор лида: если есть лид со status_id == 833 — берём его; иначе при наличии активных (не 142/143) — ошибка «повторная отправка невозможна»; иначе ошибка «Telegram-ник неверный».
+ * 4. Сохраняем бриф в ACF, создаём CPT application, обновляем контакт и лид в AmoCRM, редирект на /статус/.
+ *
+ * TODO: вызвать при нажатии на кнопку «Сохранить» (например, template_redirect при isset($_POST['save_brief'])).
+ */
+function handle_save_brief() {
+    if ( ! is_user_logged_in() ) {
+        return;
     }
-});
+
+    $user_id = get_current_user_id();
+    $user_group = get_field( 'user', 'user_' . $user_id );
+    $telegram   = isset( $user_group['telegram'] ) ? trim( (string) $user_group['telegram'] ) : '';
+    if ( $telegram === '' ) {
+        show_brief_error_tg_nickname_incorrect();
+        return;
+    }
+
+    require_once $_SERVER['DOCUMENT_ROOT'] . '/amo/AmoClassEA.php';
+    $Amo = new AmoClassEA();
+    $contact = $Amo->FindContactByTelegram( $telegram );
+    if ( ! $contact ) {
+        show_brief_error_tg_nickname_incorrect();
+        return;
+    }
+
+    $all_leads = isset( $contact->_embedded->leads ) ? $contact->_embedded->leads : [];
+    $pipeline_id_wanted = 9395722;
+    $leads_in_pipeline = array_filter( $all_leads, function ( $lead ) use ( $pipeline_id_wanted ) {
+        return isset( $lead->pipeline_id ) && (int) $lead->pipeline_id === $pipeline_id_wanted;
+    } );
+    $leads_in_pipeline = array_values( $leads_in_pipeline );
+
+    $status_833 = 833;
+    $status_142 = 142;
+    $status_143 = 143;
+    $lead_to_use = null;
+    $has_active_not_833 = false;
+
+    foreach ( $leads_in_pipeline as $lead ) {
+        $sid = isset( $lead->status_id ) ? (int) $lead->status_id : 0;
+        if ( $sid === $status_833 ) {
+            $lead_to_use = $lead;
+            break;
+        }
+        if ( $sid !== $status_142 && $sid !== $status_143 ) {
+            $has_active_not_833 = true;
+        }
+    }
+
+    if ( $lead_to_use === null ) {
+        if ( count( $leads_in_pipeline ) === 0 ) {
+            show_brief_error_tg_nickname_incorrect();
+            return;
+        }
+        if ( $has_active_not_833 ) {
+            show_brief_error_refill_disabled();
+            return;
+        }
+        show_brief_error_tg_nickname_incorrect();
+        return;
+    }
+
+    $notesModifiedFields = '';
+    $date_group = get_field( 'data', 'user_' . $user_id );
+    if ( ! is_array( $date_group ) ) {
+        $date_group = [];
+    }
+    $allFields = GetCustomUserFields();
+
+    if ( isset( $_POST['formentor'] ) ) {
+        $new_val = sanitize_text_field( $_POST['formentor'] );
+        if ( isset( $date_group['formentor'] ) && $date_group['formentor'] !== $new_val ) {
+            $notesModifiedFields .= "Изменено поле (К какому наставнику) \nСтарое значение: " . $date_group['formentor'] . " \nНовое значение: " . $new_val . "\n\n____________________________\n\n";
+        }
+        $date_group['formentor'] = $new_val;
+    }
+    for ( $i = 2; $i <= 15; $i++ ) {
+        $field_name = 'question_' . $i;
+        if ( isset( $_POST[ $field_name ] ) ) {
+            $new_val = sanitize_text_field( $_POST[ $field_name ] );
+            if ( isset( $date_group[ $field_name ] ) && $date_group[ $field_name ] !== $new_val ) {
+                $itemLabel = '';
+                if ( ! empty( $allFields['data']['sub_fields'] ) ) {
+                    foreach ( $allFields['data']['sub_fields'] as $fieldItem ) {
+                        if ( $fieldItem['name'] === $field_name ) {
+                            $itemLabel = $fieldItem['label'];
+                            break;
+                        }
+                    }
+                }
+                $notesModifiedFields .= "Изменено поле (" . $itemLabel . ") \nСтарое значение: " . ( $date_group[ $field_name ] ?? '' ) . " \nНовое значение: " . $new_val . "\n\n____________________________\n\n";
+            }
+            $date_group[ $field_name ] = $new_val;
+        }
+    }
+    $date_group['системное_поле'] = '123';
+    update_field( 'data', $date_group, 'user_' . $user_id );
+    update_field( 'status', 'step1', 'user_' . $user_id );
+
+    $has_previous_applications = get_posts( [
+        'post_type'      => 'application',
+        'author'         => $user_id,
+        'posts_per_page' => 1,
+        'fields'         => 'ids',
+        'post_status'    => 'any',
+    ] );
+    $is_first_application = empty( $has_previous_applications );
+    $application_type    = $is_first_application ? 'new' : 'update';
+    $user_name           = $user_group['name'] ?? '';
+    $mentor_name         = $date_group['formentor'] ?? '';
+
+    $application_id = wp_insert_post( [
+        'post_type'   => 'application',
+        'post_status' => 'publish',
+        'post_title'  => ( $is_first_application ? 'Новая заявка' : 'Обновление заявки' ) . ' — ' . $user_name . ' — ' . current_time( 'd.m.Y H:i' ),
+    ] );
+
+    if ( ! is_wp_error( $application_id ) && $application_id ) {
+        update_post_meta( $application_id, 'app_user', $user_name );
+        update_post_meta( $application_id, 'application_type', $application_type );
+        update_post_meta( $application_id, 'created_at', current_time( 'mysql' ) );
+        update_post_meta( $application_id, 'phone', $user_group['phone'] ?? '' );
+        update_post_meta( $application_id, 'email', $user_group['email'] ?? '' );
+        update_post_meta( $application_id, 'coach', $mentor_name );
+        for ( $i = 3; $i <= 15; $i++ ) {
+            $key = 'question_' . $i;
+            if ( ! empty( $date_group[ $key ] ) ) {
+                update_post_meta( $application_id, $key, sanitize_textarea_field( $date_group[ $key ] ) );
+            }
+        }
+        wp_mail(
+            get_option( 'admin_email' ),
+            $is_first_application ? 'Новая заявка' : 'Обновление заявки',
+            $is_first_application ? 'Поступила новая заявка от ' . $user_name : 'Пользователь отправил обновление заявки: ' . $user_name
+        );
+    }
+
+    $userData     = GetUserData();
+    $clearedPhone = preg_replace( '/[^0-9]/', '', $userData['user']['phone'] ?? '' );
+    $customFields = build_amo_contact_custom_fields( $userData, $clearedPhone );
+
+    $Amo->EditedContact( [
+        'amo_id'                => $lead_to_use->id,
+        'phone'                 => $clearedPhone,
+        'first_name'            => trim( $userData['user']['name'] ?? '' ),
+        'custom_fields_values'  => $customFields,
+        'note'                  => $notesModifiedFields ?: null,
+    ] );
+
+    $Amo->EditedLead( [ [
+        'id'             => (int) $lead_to_use->id,
+        'status_id'      => 75253982,
+        'pipeline_id'    => 9395722,
+        'tags_to_add'    => [ [ 'name' => 'Анкета отправлена' ] ],
+    ] ] );
+
+    wp_redirect( home_url( '/статус/' ) );
+    exit;
+}
 
 
 function my_enqueue_scripts() {
