@@ -512,6 +512,7 @@ function build_amo_contact_custom_fields( $userData, $clearedPhone ) {
 		['field_id' => 173427, 'values' => [['value' => trim($u['email'] ?? '')]]],
 		['field_id' => 495267, 'values' => [['value' => trim($u['telegram'] ?? '')]]],
 		['field_id' => 536525, 'values' => [['value' => trim($u['vk'] ?? '')]]],
+		['field_id' => 550455, 'values' => [['value' => trim($u['vk'] ?? '')]]],
 		['field_id' => 495259, 'values' => [['value' => trim($u['name'] ?? '')]]],
 		['field_id' => 495257, 'values' => [['value' => trim($d['formentor'] ?? '')]]],
 		['field_id' => 495263, 'values' => [['value' => trim($u['birthday'] ?? '')]]],
