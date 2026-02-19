@@ -10347,6 +10347,15 @@ align-items:flex-start;
 	
 }
 
+.quiz_question p{
+	margin-top:20px;
+	color:red;
+	font-size:12px;
+	font-weight:600;
+}
+.quiz_question p.hide{
+	display:none;
+}
 .quiz_question input{
 	width:calc(100% - 20px);
 	padding-left:20px;

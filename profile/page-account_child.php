@@ -29,11 +29,11 @@ $passport_reg_url = $group['child_doc'];
 $group_parent = get_field('guardian', 'user_' . $user_id);
 $name_guardian = $group_parent['name'];
 $phone_guardian = $group_parent['phone'];
-$email_guardian = $group_parent['email']
+$email_guardian = $group_parent['email'];
 
 
 $date_group = get_field('data', 'user_' . $user_id);
-	$name = $group_age['name'];
+	$name1 = $group_age['name'];
 $formentor = $date_group['formentor'];
 
 $q2 = $date_group['question_2'];
@@ -108,7 +108,7 @@ $sucsess =  0;
 </svg> Знакомство
 						</a>
 						<div class = "sidebar-left-link-list">
-							<div class = "sidebar-left-link-list-item active <?php if ($name){echo 'done';}?>">
+							<div class = "sidebar-left-link-list-item <?php if ($name){echo 'done';}?>">
 								<a href = "/контактные-данные">
 									<svg xmlns="http://www.w3.org/2000/svg" width="24" height="12" viewBox="0 0 24 12" fill="none">
 										  <line x1="1" y1="1" x2="23" y2="1" stroke="#8B8B8B" stroke-width="2" stroke-linecap="round"/>
