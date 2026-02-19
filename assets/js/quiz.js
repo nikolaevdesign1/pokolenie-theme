@@ -47,6 +47,8 @@ $(document).ready(function() {
                     $('#amo_lead_id').val(response.data.lead_id);
                     sessionStorage.setItem('quiz_amo_lead_id', response.data.lead_id);
                     console.log('AmoCRM lead created:', response.data.lead_id);
+                } else if (!response.success && response.data && response.data.blocked) {
+                    $('input[name="quiz_q4"]').closest('.quiz_question').find('.mistake').removeClass('hide');
                 }
             },
             error: function(xhr, status, error) {

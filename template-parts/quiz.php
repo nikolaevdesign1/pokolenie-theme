@@ -148,7 +148,7 @@ if (
 					 	4.	Ник Telegram 
 						<input type = "text" placeholder = "@" name = "quiz_q4">
 					</label>
-					<p class = "mistake">
+					<p class = "mistake hide">
 						Этот ник уже существует
 					</p>
 				</div>
