@@ -726,24 +726,11 @@ add_action( 'template_redirect', 'handle_redirect_to_tg_bot' );
  * Использует закэшированный amo_lead_id (сохраняется при успешной отправке контактных данных в popup_zoom_form_handler).
  * Сохраняет бриф в ACF, создаёт CPT application, обновляет контакт и лид в AmoCRM, редирект на /статус/.
  */
-function handle_save_brief() {
-    if ( $_SERVER['REQUEST_METHOD'] !== 'POST' || ! isset( $_POST['save_brief'] ) ) {
-        return;
-    }
-    if ( ! is_user_logged_in() ) {
-        return;
-    }
-    if ( ! isset( $_POST['application_nonce'] ) || ! wp_verify_nonce( $_POST['application_nonce'], 'create_application' ) ) {
-        return;
-    }
-
+function do_save_brief_logic( $redirect = '/статус/' ) {
     $user_id    = get_current_user_id();
     $user_group = get_field( 'user', 'user_' . $user_id );
 
     $lead_id = (int) get_user_meta( $user_id, 'amo_lead_id', true );
-    if ( $lead_id <= 0 ) {
-        return;
-    }
 
     $notesModifiedFields = '';
     $date_group = get_field( 'data', 'user_' . $user_id );
@@ -846,8 +833,21 @@ function handle_save_brief() {
         error_log( 'AmoCRM API Error in handle_save_brief: ' . $e->getMessage() );
     }
 
-    wp_redirect( home_url( '/статус/' ) );
+    wp_redirect( home_url( $redirect ) );
     exit;
+}
+
+function handle_save_brief() {
+    if ( $_SERVER['REQUEST_METHOD'] !== 'POST' || ! isset( $_POST['save_brief'] ) ) {
+        return;
+    }
+    if ( ! is_user_logged_in() ) {
+        return;
+    }
+    if ( ! isset( $_POST['application_nonce'] ) || ! wp_verify_nonce( $_POST['application_nonce'], 'create_application' ) ) {
+        return;
+    }
+    do_save_brief_logic();
 }
 add_action( 'template_redirect', 'handle_save_brief', 5 );
 

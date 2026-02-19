@@ -15,12 +15,10 @@ $user_id = get_current_user_id();
     wp_verify_nonce($_POST['user_brief_nonce'], 'save_user_brief')
 ) {
 
-    $user_id = get_current_user_id();
-
     // Санитизация
-    $question_11 = sanitize_text_field($_POST['question_11']);
-    $question_12 = sanitize_text_field($_POST['question_12']);
-    $question_13 = sanitize_text_field($_POST['question_13']);
+    $question_11 = sanitize_textarea_field($_POST['question_11']);
+    $question_12 = sanitize_textarea_field($_POST['question_12']);
+    $question_13 = sanitize_textarea_field($_POST['question_13']);
 
     // Получаем текущую группу
     $data_group = get_field('data', 'user_' . $user_id);
@@ -37,58 +35,7 @@ $user_id = get_current_user_id();
     // Сохраняем группу
     update_field('data', $data_group, 'user_' . $user_id);
 
-		$user_id = get_current_user_id();
-    $current_user = wp_get_current_user();
-
-    $group_age = get_field('user', 'user_' . $user_id);
-    $date_group = get_field('data', 'user_' . $user_id);
-
-    $name  = $group_age['name']; // ФИО
-    $phone = $group_age['phone'];
-    $email = $current_user->user_email;
-    $formentor = $date_group['formentor'];
-
-    // Формируем дату в формате 15.02.2026 23:43
-    $current_datetime = current_time('d.m.Y H:i');
-
-    // Формируем заголовок
-    $post_title = 'Новая заявка — ' . $name . ' — ' . $current_datetime;
-
-    // Создаём запись
-    $post_id = wp_insert_post([
-        'post_type'   => 'application',
-        'post_status' => 'publish',
-        'post_title'  => $post_title,
-        'post_author' => $user_id
-    ]);
-
-    if ($post_id) {
-
-        // === Заполняем ACF поля анкеты ===
-        update_field('question_2', $date_group['question_2'], $post_id);
-        update_field('question_3', $date_group['question_3'], $post_id);
-        update_field('question_4', $date_group['question_4'], $post_id);
-        update_field('question_5', $date_group['question_5'], $post_id);
-        update_field('question_6', $date_group['question_6'], $post_id);
-        update_field('question_7', $date_group['question_7'], $post_id);
-        update_field('question_8', $date_group['question_8'], $post_id);
-        update_field('question_9', $date_group['question_9'], $post_id);
-        update_field('question_10', $date_group['question_10'], $post_id);
-        update_field('question_11', $date_group['question_11'], $post_id);
-        update_field('question_12', $date_group['question_12'], $post_id);
-        update_field('question_13', $date_group['question_13'], $post_id);
-
-        // === Дополнительные поля ===
-        update_field('app_user', $name, $post_id);
-        update_field('coach', $formentor, $post_id);
-        update_field('phone', $phone, $post_id);
-        update_field('email', $email, $post_id);
-
-      
-    }
-		
-   wp_redirect('/заявка-спасибо');
-    exit;
+    do_save_brief_logic( '/заявка-спасибо' );
 }
 
 	
