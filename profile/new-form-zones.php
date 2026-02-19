@@ -37,8 +37,57 @@ $user_id = get_current_user_id();
     // Сохраняем группу
     update_field('data', $data_group, 'user_' . $user_id);
 
-    // Редирект
-    wp_redirect('/заявка-запустить-навигацию/');
+		$user_id = get_current_user_id();
+    $current_user = wp_get_current_user();
+
+    $group_age = get_field('user', 'user_' . $user_id);
+    $date_group = get_field('data', 'user_' . $user_id);
+
+    $name  = $group_age['name']; // ФИО
+    $phone = $group_age['phone'];
+    $email = $current_user->user_email;
+    $formentor = $date_group['formentor'];
+
+    // Формируем дату в формате 15.02.2026 23:43
+    $current_datetime = current_time('d.m.Y H:i');
+
+    // Формируем заголовок
+    $post_title = 'Новая заявка — ' . $name . ' — ' . $current_datetime;
+
+    // Создаём запись
+    $post_id = wp_insert_post([
+        'post_type'   => 'application',
+        'post_status' => 'publish',
+        'post_title'  => $post_title,
+        'post_author' => $user_id
+    ]);
+
+    if ($post_id) {
+
+        // === Заполняем ACF поля анкеты ===
+        update_field('question_2', $date_group['question_2'], $post_id);
+        update_field('question_3', $date_group['question_3'], $post_id);
+        update_field('question_4', $date_group['question_4'], $post_id);
+        update_field('question_5', $date_group['question_5'], $post_id);
+        update_field('question_6', $date_group['question_6'], $post_id);
+        update_field('question_7', $date_group['question_7'], $post_id);
+        update_field('question_8', $date_group['question_8'], $post_id);
+        update_field('question_9', $date_group['question_9'], $post_id);
+        update_field('question_10', $date_group['question_10'], $post_id);
+        update_field('question_11', $date_group['question_11'], $post_id);
+        update_field('question_12', $date_group['question_12'], $post_id);
+        update_field('question_13', $date_group['question_13'], $post_id);
+
+        // === Дополнительные поля ===
+        update_field('app_user', $name, $post_id);
+        update_field('coach', $formentor, $post_id);
+        update_field('phone', $phone, $post_id);
+        update_field('email', $email, $post_id);
+
+      
+    }
+		
+   wp_redirect('/заявка-спасибо');
     exit;
 }
 
@@ -248,19 +297,7 @@ $sucsess =  0;
   </defs>
 </svg>
 								<div>Зоны роста <br><span>(3 вопроса) 10-15 минут</span> </div></a>
-								<a href = "/заявка-запустить-навигацию"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="15" viewBox="0 0 11 15" fill="none">
-  <g clip-path="url(#clip0_742_959)">
-    <path fill-rule="evenodd" clip-rule="evenodd" d="M0.704902 5.7981H10.2963C10.4832 5.7981 10.6625 5.87526 10.7947 6.01262C10.9269 6.14997 11.0012 6.33627 11.0012 6.53052V14.2673C11.0012 14.4616 10.9269 14.6479 10.7947 14.7852C10.6625 14.9226 10.4832 14.9998 10.2963 14.9998H0.704902C0.517951 14.9998 0.338656 14.9226 0.206461 14.7852C0.0742663 14.6479 0 14.4616 0 14.2673L0 6.5293C0 6.33505 0.0742663 6.14875 0.206461 6.0114C0.338656 5.87404 0.517951 5.79688 0.704902 5.79688V5.7981Z" fill="#FFC64A"/>
-    <path fill-rule="evenodd" clip-rule="evenodd" d="M4.92115 10.8945L4.16103 12.9635H6.83849L6.13359 10.8627C6.41198 10.7134 6.63346 10.4705 6.76186 10.1736C6.89026 9.87671 6.918 9.54334 6.84055 9.22793C6.7631 8.91253 6.58504 8.63372 6.33543 8.43702C6.08582 8.24032 5.77941 8.13735 5.46621 8.14492C5.15302 8.15249 4.85154 8.27015 4.611 8.47869C4.37046 8.68723 4.20507 8.97434 4.14181 9.29315C4.07856 9.61195 4.12118 9.94362 4.26273 10.234C4.40427 10.5244 4.63638 10.7564 4.92115 10.892V10.8945Z" fill="#606060"/>
-    <path fill-rule="evenodd" clip-rule="evenodd" d="M9.81983 5.79929H8.48639V4.64939C8.49109 3.7863 8.17356 2.95494 7.60056 2.33006C7.33228 2.03041 7.00746 1.79143 6.64635 1.62802C6.28523 1.4646 5.89559 1.38027 5.50171 1.38027C5.10784 1.38027 4.71819 1.4646 4.35708 1.62802C3.99597 1.79143 3.67114 2.03041 3.40287 2.33006C2.82987 2.95494 2.51234 3.7863 2.51704 4.64939V5.79929H1.1836V4.64939C1.18172 3.4306 1.63292 2.25813 2.44302 1.37669C2.83519 0.942127 3.30895 0.595749 3.83505 0.358959C4.36114 0.12217 4.92838 0 5.50171 0C6.07504 0 6.64229 0.12217 7.16838 0.358959C7.69447 0.595749 8.16824 0.942127 8.5604 1.37669C9.37114 2.25771 9.82244 3.43045 9.81983 4.64939V5.79929Z" fill="#606060"/>
-  </g>
-  <defs>
-    <clipPath id="clip0_742_959">
-      <rect width="11" height="15" fill="white"/>
-    </clipPath>
-  </defs>
-</svg>
-								<div>Запустить навигацию по отбору</div></a>
+								
 							</div>
 						</div>
 
