@@ -12,6 +12,13 @@ if ( ! defined( '_S_VERSION' ) ) {
 	define( '_S_VERSION', '1.0.0' );
 }
 
+// AmoCRM constants
+define('AMO_PIPELINE_CHILDER', 9395722);
+define('AMO_STATUS_READY_FOR_CONTACT', 833);
+define('AMO_STATUS_CLOSED_1', 142);
+define('AMO_STATUS_CLOSED_2', 143);
+define('AMO_STATUS_BRIEF_SUBMITTED', 75253982);
+
 /**
  * Sets up theme defaults and registers support for various WordPress features.
  *
@@ -361,8 +368,43 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 
 
+/**
+ * Find the lead in pipeline 9395722 with status 833 for an Amo contact.
+ * Used before sending contact data (e.g. in popup_zoom_form_handler).
+ *
+ * @param object $contact Amo contact with _embedded->leads.
+ * @return array{ 'lead' => object|null, 'reason' => null|'refill_disabled'|'tg_incorrect' } Lead to use and reason when null.
+ */
+function get_amo_lead_for_contact( $contact ) {
+    $all_leads          = isset( $contact->_embedded->leads ) ? $contact->_embedded->leads : [];
+    $leads_in_pipeline  = array_values( array_filter( $all_leads, function ( $lead ) {
+        return isset( $lead->pipeline_id ) && (int) $lead->pipeline_id === AMO_PIPELINE_CHILDER;
+    } ) );
+    $lead_to_use = null;
+    $has_active_not_833 = false;
+    foreach ( $leads_in_pipeline as $lead ) {
+        $sid = isset( $lead->status_id ) ? (int) $lead->status_id : 0;
+        if ( $sid === AMO_STATUS_READY_FOR_CONTACT ) {
+            $lead_to_use = $lead;
+            break;
+        }
+        if ( $sid !== AMO_STATUS_CLOSED_1 && $sid !== AMO_STATUS_CLOSED_2 ) {
+            $has_active_not_833 = true;
+        }
+    }
+    $reason = null;
+    if ( $lead_to_use === null ) {
+        $reason = ( count( $leads_in_pipeline ) > 0 && $has_active_not_833 ) ? 'refill_disabled' : 'tg_incorrect';
+    }
+    return [ 'lead' => $lead_to_use, 'reason' => $reason ];
+}
+
 function popup_zoom_form_handler() {
     if (!(isset($_POST['save_data']) && is_user_logged_in())) {
+        return;
+    }
+
+    if ( ! isset( $_POST['contact_nonce'] ) || ! wp_verify_nonce( $_POST['contact_nonce'], 'save_contact_data' ) ) {
         return;
     }
 
@@ -462,7 +504,52 @@ function popup_zoom_form_handler() {
         ]);
     }
 
-    wp_redirect(home_url('/контактные-данные/?saved=1'));
+    // -----------------------
+    // Push contact/guardian data to AmoCRM (contact fields only; no lead status change)
+    // -----------------------
+    $userData     = get_user_data( $user_id );
+    $telegram     = isset( $userData['user']['telegram'] ) ? trim( (string) $userData['user']['telegram'] ) : '';
+    $clearedPhone = preg_replace( '/[^0-9]/', '', $userData['user']['phone'] ?? '' );
+
+    if ( $telegram === '' ) {
+        wp_redirect( home_url( '/контактные-данные/?tg_error=1' ) );
+        exit;
+    }
+
+    require_once $_SERVER['DOCUMENT_ROOT'] . '/amo/AmoClassEA.php';
+    $Amo    = new AmoClassEA();
+    $contact = $Amo->FindContactByTelegram( $telegram );
+
+    if ( ! $contact ) {
+        wp_redirect( home_url( '/контактные-данные/?tg_error=1' ) );
+        exit;
+    }
+
+    $result = get_amo_lead_for_contact( $contact );
+    if ( $result['lead'] === null ) {
+        $param = $result['reason'] === 'refill_disabled' ? 'refill' : '1';
+        wp_redirect( home_url( '/контактные-данные/?tg_error=' . $param ) );
+        exit;
+    }
+    $lead_to_use = $result['lead'];
+
+    $contactFields = build_amo_contact_fields( $userData, $clearedPhone );
+    try {
+        $Amo->EditedContact( [
+            'amo_id'               => (int) $lead_to_use->id,
+            'phone'                => $clearedPhone,
+            'first_name'           => trim( $userData['user']['name'] ?? '' ),
+            'custom_fields_values' => $contactFields,
+        ] );
+    } catch ( Exception $e ) {
+        error_log( 'AmoCRM EditedContact Error: ' . $e->getMessage() );
+        wp_redirect( home_url( '/контактные-данные/?tg_error=1' ) );
+        exit;
+    }
+
+    update_user_meta( $user_id, 'amo_lead_id', (int) $lead_to_use->id );
+
+    wp_redirect( home_url( '/контактные-данные/?saved=1' ) );
     exit;
 }
 
@@ -479,12 +566,20 @@ function popup_zoom_form_handler() {
 add_action('template_redirect', 'popup_zoom_form_handler');
 
 
-function get_age( $birthday ){
-	$diff = date( 'Ymd' ) - date( 'Ymd', strtotime($birthday) );
-	return substr( $diff, 0, -4 );
+function get_age( $birthday ) {
+	if ( empty( $birthday ) ) {
+		return '';
+	}
+	try {
+		$birth = new DateTime( $birthday );
+		$now = new DateTime();
+		return $birth->diff( $now )->y;
+	} catch ( Exception $e ) {
+		return '';
+	}
 }
 
-function GetUserData($userID = false) {
+function get_user_data($userID = false) {
 
 	if(!$userID) $userID = get_current_user_id();
 	if(!$userID) return false;
@@ -504,58 +599,84 @@ function GetUserData($userID = false) {
 }
 
 /**
+ * Build AmoCRM custom fields for contact/guardian only (available after Step 2 contact form).
+ *
+ * @param array  $userData     From GetUserData().
+ * @param string $clearedPhone Phone digits only.
+ * @return array
+ */
+function build_amo_contact_fields( $userData, $clearedPhone ) {
+	$u = $userData['user'] ?? [];
+	$g = $userData['guardian'] ?? [];
+	$m = $userData['main'] ?? [];
+	$is_old_label = ( isset( $m['is_old'] ) && $m['is_old'] === 'yes' ) ? 'Да' : 'Нет';
+	$passport_val = $u['passport'] ?? '';
+	$passport_val = is_array( $passport_val ) && ! empty( $passport_val['url'] ) ? $passport_val['url'] : ( is_scalar( $passport_val ) ? (string) $passport_val : '' );
+	$child_doc_val = $u['child_doc'] ?? '';
+	$child_doc_val = is_array( $child_doc_val ) && ! empty( $child_doc_val['url'] ) ? $child_doc_val['url'] : ( is_scalar( $child_doc_val ) ? (string) $child_doc_val : '' );
+	return [
+		['field_id' => 173425, 'values' => [['value' => $clearedPhone]]],
+		['field_id' => 173427, 'values' => [['value' => trim( $u['email'] ?? '' )]]],
+		['field_id' => 495267, 'values' => [['value' => trim( $u['telegram'] ?? '' )]]],
+		['field_id' => 536525, 'values' => [['value' => trim( $u['vk'] ?? '' )]]],
+		['field_id' => 550455, 'values' => [['value' => trim( $u['vk'] ?? '' )]]],
+		['field_id' => 495259, 'values' => [['value' => trim( $u['name'] ?? '' )]]],
+		['field_id' => 495263, 'values' => [['value' => trim( $u['birthday'] ?? '' )]]],
+		['field_id' => 528891, 'values' => [['value' => get_age( $u['birthday'] ?? '' )]]],
+		['field_id' => 528903, 'values' => [['value' => trim( $u['city'] ?? '' )]]],
+		['field_id' => 500205, 'values' => [['value' => $is_old_label]]],
+		['field_id' => 556051, 'values' => [['value' => trim( $g['name'] ?? '' )]]],
+		['field_id' => 556053, 'values' => [['value' => trim( $g['phone'] ?? '' )]]],
+		['field_id' => 556055, 'values' => [['value' => trim( $g['email'] ?? '' )]]],
+		['field_id' => 550459, 'values' => [['value' => trim( $passport_val )]]],
+		['field_id' => 550461, 'values' => [['value' => trim( $child_doc_val )]]],
+	];
+}
+
+/**
+ * Build AmoCRM custom fields for brief/questionnaire only (available after full brief).
+ *
+ * @param array $userData From GetUserData().
+ * @return array
+ */
+function build_amo_brief_fields( $userData ) {
+	$d = $userData['data'] ?? [];
+	return [
+		['field_id' => 495257, 'values' => [['value' => trim( $d['formentor'] ?? '' )]]],
+		['field_id' => 495265, 'values' => [['value' => trim( $d['question_2'] ?? '' )]]],
+		['field_id' => 531033, 'values' => [['value' => trim( $d['question_3'] ?? '' )]]],
+		['field_id' => 531035, 'values' => [['value' => trim( $d['found_name'] ?? '' )]]],
+		['field_id' => 550457, 'values' => [['value' => trim( $d['question_2'] ?? '' )]]],
+		['field_id' => 550465, 'values' => [['value' => trim( $d['question_2'] ?? '' )]]],
+		['field_id' => 550467, 'values' => [['value' => trim( $d['question_3'] ?? '' )]]],
+		['field_id' => 550469, 'values' => [['value' => trim( $d['question_4'] ?? '' )]]],
+		['field_id' => 550471, 'values' => [['value' => trim( $d['question_5'] ?? '' )]]],
+		['field_id' => 550473, 'values' => [['value' => trim( $d['question_6'] ?? '' )]]],
+		['field_id' => 550475, 'values' => [['value' => trim( $d['question_7'] ?? '' )]]],
+		['field_id' => 550477, 'values' => [['value' => trim( $d['question_8'] ?? '' )]]],
+		['field_id' => 550479, 'values' => [['value' => trim( $d['question_9'] ?? '' )]]],
+		['field_id' => 550481, 'values' => [['value' => trim( $d['question_10'] ?? '' )]]],
+		['field_id' => 550483, 'values' => [['value' => trim( $d['question_11'] ?? '' )]]],
+		['field_id' => 550485, 'values' => [['value' => trim( $d['question_12'] ?? '' )]]],
+		['field_id' => 550487, 'values' => [['value' => trim( $d['question_13'] ?? '' )]]],
+		['field_id' => 550489, 'values' => [['value' => trim( $d['question_14'] ?? '' )]]],
+		['field_id' => 550491, 'values' => [['value' => trim( $d['question_15'] ?? '' )]]],
+	];
+}
+
+/**
  * Build contact custom_fields_values for amo CRM (shared by EditedContact and AddLead).
+ * Merges contact + brief fields for full brief submission.
  *
  * @param array  $userData     From GetUserData().
  * @param string $clearedPhone Phone digits only.
  * @return array
  */
 function build_amo_contact_custom_fields( $userData, $clearedPhone ) {
-	$d = $userData['data'] ?? [];
-	$u = $userData['user'] ?? [];
-	$g = $userData['guardian'] ?? [];
-	$m = $userData['main'] ?? [];
-	$is_old_label = ( isset($m['is_old']) && $m['is_old'] === 'yes' ) ? 'Да' : 'Нет';
-	$passport_val = $u['passport'] ?? '';
-	$passport_val = is_array($passport_val) && ! empty($passport_val['url']) ? $passport_val['url'] : ( is_scalar($passport_val) ? (string) $passport_val : '' );
-	$child_doc_val = $u['child_doc'] ?? '';
-	$child_doc_val = is_array($child_doc_val) && ! empty($child_doc_val['url']) ? $child_doc_val['url'] : ( is_scalar($child_doc_val) ? (string) $child_doc_val : '' );
-	return [
-		['field_id' => 173425, 'values' => [['value' => $clearedPhone]]],
-		['field_id' => 173427, 'values' => [['value' => trim($u['email'] ?? '')]]],
-		['field_id' => 495267, 'values' => [['value' => trim($u['telegram'] ?? '')]]],
-		['field_id' => 536525, 'values' => [['value' => trim($u['vk'] ?? '')]]],
-		['field_id' => 550455, 'values' => [['value' => trim($u['vk'] ?? '')]]],
-		['field_id' => 495259, 'values' => [['value' => trim($u['name'] ?? '')]]],
-		['field_id' => 495257, 'values' => [['value' => trim($d['formentor'] ?? '')]]],
-		['field_id' => 495263, 'values' => [['value' => trim($u['birthday'] ?? '')]]],
-		['field_id' => 528891, 'values' => [['value' => get_age($u['birthday'] ?? '')]]],
-		['field_id' => 528903, 'values' => [['value' => trim($u['city'] ?? '')]]],
-		['field_id' => 500205, 'values' => [['value' => $is_old_label]]],
-		['field_id' => 556051, 'values' => [['value' => trim($g['name'] ?? '')]]],
-		['field_id' => 556053, 'values' => [['value' => trim($g['phone'] ?? '')]]],
-		['field_id' => 556055, 'values' => [['value' => trim($g['email'] ?? '')]]],
-		['field_id' => 550459, 'values' => [['value' => trim($passport_val)]]],
-		['field_id' => 550461, 'values' => [['value' => trim($child_doc_val)]]],
-		['field_id' => 495265, 'values' => [['value' => trim($d['question_2'] ?? '')]]],
-		['field_id' => 531033, 'values' => [['value' => trim($d['question_3'] ?? '')]]],
-		['field_id' => 531035, 'values' => [['value' => trim($d['found_name'] ?? '')]]],
-		['field_id' => 550457, 'values' => [['value' => trim($d['question_2'] ?? '')]]],
-		['field_id' => 550465, 'values' => [['value' => trim($d['question_2'] ?? '')]]],
-		['field_id' => 550467, 'values' => [['value' => trim($d['question_3'] ?? '')]]],
-		['field_id' => 550469, 'values' => [['value' => trim($d['question_4'] ?? '')]]],
-		['field_id' => 550471, 'values' => [['value' => trim($d['question_5'] ?? '')]]],
-		['field_id' => 550473, 'values' => [['value' => trim($d['question_6'] ?? '')]]],
-		['field_id' => 550475, 'values' => [['value' => trim($d['question_7'] ?? '')]]],
-		['field_id' => 550477, 'values' => [['value' => trim($d['question_8'] ?? '')]]],
-		['field_id' => 550479, 'values' => [['value' => trim($d['question_9'] ?? '')]]],
-		['field_id' => 550481, 'values' => [['value' => trim($d['question_10'] ?? '')]]],
-		['field_id' => 550483, 'values' => [['value' => trim($d['question_11'] ?? '')]]],
-		['field_id' => 550485, 'values' => [['value' => trim($d['question_12'] ?? '')]]],
-		['field_id' => 550487, 'values' => [['value' => trim($d['question_13'] ?? '')]]],
-		['field_id' => 550489, 'values' => [['value' => trim($d['question_14'] ?? '')]]],
-		['field_id' => 550491, 'values' => [['value' => trim($d['question_15'] ?? '')]]],
-	];
+	return array_merge(
+		build_amo_contact_fields( $userData, $clearedPhone ),
+		build_amo_brief_fields( $userData )
+	);
 }
 
 
@@ -571,7 +692,7 @@ function build_amo_contact_custom_fields( $userData, $clearedPhone ) {
 
 
 
-function getCustomUserFields() {
+function get_custom_user_fields() {
 
 	$result = [];
 
@@ -586,21 +707,6 @@ function getCustomUserFields() {
 
 }
 
-/**
- * Ошибка: Telegram-ник не найден или не совпадает (контакт не найден, нет лидов в воронке, только закрытые лиды).
- * TODO: реализовать отображение ошибки в UI.
- */
-function show_brief_error_tg_nickname_incorrect() {
-    // TODO: реализовать отображение ошибки «Telegram-ник не найден / не совпадает»
-}
-
-/**
- * Ошибка: повторная отправка анкеты невозможна (есть активный лид, но не в статусе 833).
- * TODO: реализовать отображение ошибки в UI.
- */
-function show_brief_error_refill_disabled() {
-    // TODO: реализовать отображение ошибки «Повторная отправка анкеты невозможна»
-}
 
 /**
  * Переход в Telegram-бот. Только редирект, без логики AmoCRM.
@@ -617,69 +723,25 @@ add_action( 'template_redirect', 'handle_redirect_to_tg_bot' );
 /**
  * Обработчик «Сохранить» анкету.
  *
- * Флоу:
- * 1. Ищем контакт в AmoCRM по Telegram-нику (user.telegram, с @).
- * 2. Фильтруем лиды контакта по pipeline_id == 9395722.
- * 3. Выбор лида: если есть лид со status_id == 833 — берём его; иначе при наличии активных (не 142/143) — ошибка «повторная отправка невозможна»; иначе ошибка «Telegram-ник неверный».
- * 4. Сохраняем бриф в ACF, создаём CPT application, обновляем контакт и лид в AmoCRM, редирект на /статус/.
- *
- * TODO: вызвать при нажатии на кнопку «Сохранить» (например, template_redirect при isset($_POST['save_brief'])).
+ * Использует закэшированный amo_lead_id (сохраняется при успешной отправке контактных данных в popup_zoom_form_handler).
+ * Сохраняет бриф в ACF, создаёт CPT application, обновляет контакт и лид в AmoCRM, редирект на /статус/.
  */
 function handle_save_brief() {
+    if ( $_SERVER['REQUEST_METHOD'] !== 'POST' || ! isset( $_POST['save_brief'] ) ) {
+        return;
+    }
     if ( ! is_user_logged_in() ) {
         return;
     }
+    if ( ! isset( $_POST['application_nonce'] ) || ! wp_verify_nonce( $_POST['application_nonce'], 'create_application' ) ) {
+        return;
+    }
 
-    $user_id = get_current_user_id();
+    $user_id    = get_current_user_id();
     $user_group = get_field( 'user', 'user_' . $user_id );
-    $telegram   = isset( $user_group['telegram'] ) ? trim( (string) $user_group['telegram'] ) : '';
-    if ( $telegram === '' ) {
-        show_brief_error_tg_nickname_incorrect();
-        return;
-    }
 
-    require_once $_SERVER['DOCUMENT_ROOT'] . '/amo/AmoClassEA.php';
-    $Amo = new AmoClassEA();
-    $contact = $Amo->FindContactByTelegram( $telegram );
-    if ( ! $contact ) {
-        show_brief_error_tg_nickname_incorrect();
-        return;
-    }
-
-    $all_leads = isset( $contact->_embedded->leads ) ? $contact->_embedded->leads : [];
-    $pipeline_id_wanted = 9395722;
-    $leads_in_pipeline = array_filter( $all_leads, function ( $lead ) use ( $pipeline_id_wanted ) {
-        return isset( $lead->pipeline_id ) && (int) $lead->pipeline_id === $pipeline_id_wanted;
-    } );
-    $leads_in_pipeline = array_values( $leads_in_pipeline );
-
-    $status_833 = 833;
-    $status_142 = 142;
-    $status_143 = 143;
-    $lead_to_use = null;
-    $has_active_not_833 = false;
-
-    foreach ( $leads_in_pipeline as $lead ) {
-        $sid = isset( $lead->status_id ) ? (int) $lead->status_id : 0;
-        if ( $sid === $status_833 ) {
-            $lead_to_use = $lead;
-            break;
-        }
-        if ( $sid !== $status_142 && $sid !== $status_143 ) {
-            $has_active_not_833 = true;
-        }
-    }
-
-    if ( $lead_to_use === null ) {
-        if ( count( $leads_in_pipeline ) === 0 ) {
-            show_brief_error_tg_nickname_incorrect();
-            return;
-        }
-        if ( $has_active_not_833 ) {
-            show_brief_error_refill_disabled();
-            return;
-        }
-        show_brief_error_tg_nickname_incorrect();
+    $lead_id = (int) get_user_meta( $user_id, 'amo_lead_id', true );
+    if ( $lead_id <= 0 ) {
         return;
     }
 
@@ -688,7 +750,7 @@ function handle_save_brief() {
     if ( ! is_array( $date_group ) ) {
         $date_group = [];
     }
-    $allFields = GetCustomUserFields();
+    $allFields = get_custom_user_fields();
 
     if ( isset( $_POST['formentor'] ) ) {
         $new_val = sanitize_text_field( $_POST['formentor'] );
@@ -758,29 +820,36 @@ function handle_save_brief() {
         );
     }
 
-    $userData     = GetUserData();
+    $userData     = get_user_data();
     $clearedPhone = preg_replace( '/[^0-9]/', '', $userData['user']['phone'] ?? '' );
     $customFields = build_amo_contact_custom_fields( $userData, $clearedPhone );
 
-    $Amo->EditedContact( [
-        'amo_id'                => $lead_to_use->id,
-        'phone'                 => $clearedPhone,
-        'first_name'            => trim( $userData['user']['name'] ?? '' ),
-        'custom_fields_values'  => $customFields,
-        'note'                  => $notesModifiedFields ?: null,
-    ] );
+    require_once $_SERVER['DOCUMENT_ROOT'] . '/amo/AmoClassEA.php';
+    $Amo = new AmoClassEA();
 
-    $Amo->EditedLead( [ [
-        'id'             => (int) $lead_to_use->id,
-        'status_id'      => 75253982,
-        'pipeline_id'    => 9395722,
-        'tags_to_add'    => [ [ 'name' => 'Анкета отправлена' ] ],
-    ] ] );
+    try {
+        $Amo->EditedContact( [
+            'amo_id'                => $lead_id,
+            'phone'                 => $clearedPhone,
+            'first_name'            => trim( $userData['user']['name'] ?? '' ),
+            'custom_fields_values'  => $customFields,
+            'note'                  => $notesModifiedFields ?: null,
+        ] );
+
+        $Amo->EditedLead( [ [
+            'id'             => $lead_id,
+            'status_id'      => AMO_STATUS_BRIEF_SUBMITTED,
+            'pipeline_id'    => AMO_PIPELINE_CHILDER,
+            'tags_to_add'    => [ [ 'name' => 'Анкета отправлена' ] ],
+        ] ] );
+    } catch ( Exception $e ) {
+        error_log( 'AmoCRM API Error in handle_save_brief: ' . $e->getMessage() );
+    }
 
     wp_redirect( home_url( '/статус/' ) );
     exit;
 }
-
+add_action( 'template_redirect', 'handle_save_brief', 5 );
 
 function my_enqueue_scripts() {
     wp_enqueue_script('my-custom-js', get_template_directory_uri() . '/js/custom.js', array('jquery'), '1.0', true);

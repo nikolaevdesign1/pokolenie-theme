@@ -257,6 +257,7 @@ $sucsess =  0;
                         <div class="brief-contact-data">
 						
                             <form class = "contact-data-form" method="post" enctype="multipart/form-data">
+								<?php wp_nonce_field( 'save_contact_data', 'contact_nonce' ); ?>
 								<div class = "contact-data-form-step" data-step="1" style="display:block;">
 									<div class = "title">
 										Шаг 1. Контактные данные родителя или опекуна
@@ -431,10 +432,15 @@ $passport_url = '';
 									  <label>
                                     <p>5. Ник в Telegram</p>
                                     <input type="text" placeholder = "@" name="telegram" value = "<?php echo $telegram?>" required>
-										  <div class = "mistake">
-										<p>
-											Мы не нашли ваш telegram аккаунт в нашем сообществе. 
-										</p>
+										  <?php
+											$tg_err = isset( $_GET['tg_error'] ) ? $_GET['tg_error'] : '';
+											$show_tg_err = ( $tg_err === '1' || $tg_err === 'refill' );
+											$tg_err_msg = ( $tg_err === 'refill' )
+												? 'Повторная отправка анкеты невозможна. У вас уже есть активная заявка.'
+												: 'Мы не нашли ваш telegram аккаунт в нашем сообществе.';
+										  ?>
+										  <div class="mistake<?php echo $show_tg_err ? '' : ' hide'; ?>">
+										<p><?php echo esc_html( $tg_err_msg ); ?></p>
 									</div>
                                 </label>
 									<form method="post" style="display:inline;">

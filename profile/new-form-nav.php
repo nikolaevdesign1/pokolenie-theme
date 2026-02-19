@@ -325,8 +325,7 @@ if (
 								</div>
 								<form method = "post">
 <?php wp_nonce_field('create_application', 'application_nonce'); ?>
-
-									<input type = "text" name = "question_1" value = "<?php echo $formentor?>" hidden>
+									<input type="hidden" name="formentor" value="<?php echo esc_attr( $formentor ); ?>">
 									<input type = "text" name = "question_2"  value = "<?php echo $q2?>" hidden>
 									<input type = "text" name = "question_3"  value = "<?php echo $q3?>" hidden>
 									<input type = "text" name = "question_4"  value = "<?php echo $q4?>" hidden>
@@ -339,7 +338,7 @@ if (
 									<input type = "text" name = "question_11"  value = "<?php echo $q11?>" hidden>
 									<input type = "text" name = "question_12"  value = "<?php echo $q12?>" hidden>
 									<input type = "text" name = "question_13" value = "<?php echo $q13?>" hidden>
-									<button type = "submit" class = "hide">
+									<button type="submit" name="save_brief" value="1" class="hide">
 										Сохранить и отправить
 									</button>
 								</form>
