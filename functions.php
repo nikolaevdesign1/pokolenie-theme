@@ -604,12 +604,15 @@ function show_brief_error_refill_disabled() {
 
 /**
  * Переход в Telegram-бот. Только редирект, без логики AmoCRM.
- * TODO: вызвать при нажатии на кнопку «Перейти в телеграм бот» (например, добавить template_redirect с проверкой $_POST['go_tg_bot']).
  */
 function handle_redirect_to_tg_bot() {
+    if ( ! isset( $_POST['go_tg_bot'] ) ) {
+        return;
+    }
     wp_redirect( 'https://t.me/Pokolenez_bot' );
     exit;
 }
+add_action( 'template_redirect', 'handle_redirect_to_tg_bot' );
 
 /**
  * Обработчик «Сохранить» анкету.
