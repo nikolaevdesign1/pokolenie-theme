@@ -5,6 +5,57 @@ $('.quiz_popup_open').on('click', function () {
 $('.background_modal_quiz').on('click', function(){
 $('.modal_quiz').removeClass('active');
 });
+
+// Stage 1: Create AmoCRM lead when Telegram field is filled
+$(document).ready(function() {
+    let leadCreationInProgress = false;
+    
+    // Check if lead_id exists in sessionStorage on page load
+    const storedLeadId = sessionStorage.getItem('quiz_amo_lead_id');
+    if (storedLeadId) {
+        $('#amo_lead_id').val(storedLeadId);
+    }
+    
+    $('input[name="quiz_q4"]').on('blur', function() {
+        const telegram = $(this).val().trim();
+        
+        // Skip if empty or lead already created
+        if (!telegram || $('#amo_lead_id').val() || leadCreationInProgress) {
+            return;
+        }
+        
+        leadCreationInProgress = true;
+        
+        // Collect Stage 1 data (q1-q4 only, phone not available yet)
+        const formData = {
+            action: 'create_initial_lead',
+            quiz_q1: $('input[name="quiz_q1"]').val(),
+            quiz_q2: $('input[name="quiz_q2"]').val(),
+            quiz_q3: $('input[name="quiz_q3"]').val(),
+            quiz_q4: telegram
+        };
+        
+        $.ajax({
+            url: quiz_ajax.ajax_url,
+            type: 'POST',
+            data: formData,
+            success: function(response) {
+                leadCreationInProgress = false;
+                
+                if (response.success && response.data.lead_id) {
+                    // Store lead_id in hidden field and sessionStorage
+                    $('#amo_lead_id').val(response.data.lead_id);
+                    sessionStorage.setItem('quiz_amo_lead_id', response.data.lead_id);
+                    console.log('AmoCRM lead created:', response.data.lead_id);
+                }
+            },
+            error: function(xhr, status, error) {
+                leadCreationInProgress = false;
+                console.error('Error creating AmoCRM lead:', error);
+            }
+        });
+    });
+});
 	
 
 

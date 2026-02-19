@@ -1328,3 +1328,161 @@ function send_quiz_form() {
 
     wp_die();
 }
+
+// AJAX handler for creating initial AmoCRM lead when Telegram is filled
+add_action('wp_ajax_create_initial_lead', 'create_initial_lead');
+add_action('wp_ajax_nopriv_create_initial_lead', 'create_initial_lead');
+
+function create_initial_lead() {
+    // Validate required fields
+    if (empty($_POST['quiz_q4'])) {
+        wp_send_json_error(['message' => 'Telegram is required']);
+    }
+
+    // Sanitize inputs
+    $telegram = sanitize_text_field($_POST['quiz_q4']);
+    $fio = !empty($_POST['quiz_q1']) ? sanitize_text_field($_POST['quiz_q1']) : '';
+    $age = !empty($_POST['quiz_q2']) ? sanitize_text_field($_POST['quiz_q2']) : '';
+    $city = !empty($_POST['quiz_q3']) ? sanitize_text_field($_POST['quiz_q3']) : '';
+
+    // Add @ prefix if not present
+    if (strpos($telegram, '@') !== 0) {
+        $telegram = '@' . $telegram;
+    }
+
+    require_once get_template_directory() . '/amo/AmoClassEA.php';
+    $amo = new AmoClassEA();
+
+    try {
+        // Check for existing leads with this Telegram in pipeline 8955538
+        $response = $amo->CurlAction(
+            '/api/v4/leads',
+            [
+                'query' => $telegram,
+                'with' => 'contacts'
+            ],
+            [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $amo->access_token,
+            ],
+            'GET'
+        );
+
+        // Check for blocking leads
+        if (!empty($response->_embedded->leads)) {
+            foreach ($response->_embedded->leads as $lead) {
+                // Only check leads in pipeline 8955538
+                if ($lead->pipeline_id != 8955538) {
+                    continue;
+                }
+                
+                // Verify Telegram field matches
+                $telegramMatches = false;
+                if (!empty($lead->custom_fields_values)) {
+                    foreach ($lead->custom_fields_values as $field) {
+                        if ($field->field_id == 556149) {
+                            foreach ($field->values as $value) {
+                                if (trim($value->value) === $telegram) {
+                                    $telegramMatches = true;
+                                    break 2;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if (!$telegramMatches) {
+                    continue;
+                }
+                
+                // Block if status is 833
+                if ($lead->status_id == 833) {
+                    wp_send_json_error([
+                        'message' => 'refilling_disabled',
+                        'blocked' => true
+                    ]);
+                }
+
+                // If status is NOT 142 or 143, don't create new lead
+                if ($lead->status_id != 142 && $lead->status_id != 143) {
+                    wp_send_json_error([
+                        'message' => 'existing_lead',
+                        'blocked' => true
+                    ]);
+                }
+            }
+        }
+
+        // Build custom fields for Stage 1 (q1-q4)
+        $customFieldsValues = [];
+        
+        $fieldMapping = [
+            1 => ['id' => 556143, 'value' => $fio],      // ФИО
+            2 => ['id' => 556145, 'value' => $age],      // Возраст
+            3 => ['id' => 556147, 'value' => $city],     // Город
+            4 => ['id' => 556149, 'value' => $telegram], // Telegram
+        ];
+
+        foreach ($fieldMapping as $data) {
+            if (!empty($data['value'])) {
+                $customFieldsValues[] = [
+                    'field_id' => $data['id'],
+                    'values' => [
+                        ['value' => $data['value']]
+                    ]
+                ];
+            }
+        }
+
+        // Prepare contact data (phone not available at Stage 1)
+        $contactData = [
+            'first_name' => $fio ?: 'Без имени',
+            'custom_fields_values' => [
+                [
+                    'field_code' => 'IM',
+                    'values' => [
+                        [
+                            'value' => $telegram,
+                            'enum_code' => 'TELEGRAM'
+                        ]
+                    ]
+                ]
+            ]
+        ];
+
+        // Create lead using AddLead method
+        $leadParams = [
+            'phone' => '00000000000',
+            'contacts' => $contactData,
+            'leads' => [
+                'title' => 'Новый лид с сайта',
+                'pipeline_id' => 8955538,
+                'status_id' => 72228746,
+                'custom_fields_values' => $customFieldsValues,
+                'tags' => []
+            ],
+            'responsible_user_id' => 0,
+            'note' => null
+        ];
+
+        $result = $amo->AddLead($leadParams);
+        
+        if (!empty($result[0]->id)) {
+            $leadId = $result[0]->id;
+            
+            error_log('AmoCRM Stage 1 lead created: ' . $leadId);
+            
+            wp_send_json_success([
+                'lead_id' => $leadId,
+                'message' => 'Lead created successfully'
+            ]);
+        } else {
+            error_log('AmoCRM Stage 1 lead creation failed: ' . print_r($result, true));
+            wp_send_json_error(['message' => 'Failed to create lead']);
+        }
+
+    } catch (Exception $e) {
+        error_log('AmoCRM Stage 1 error: ' . $e->getMessage());
+        wp_send_json_error(['message' => 'Error creating lead']);
+    }
+}

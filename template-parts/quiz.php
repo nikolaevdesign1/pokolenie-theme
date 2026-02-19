@@ -19,7 +19,7 @@ if (
 
     // ФИО из quiz_q1
     $fio = !empty($answers[1])
-        ? trim(preg_replace('/\s+/', ' ', sanitize_text_field($answers[1])))
+        ? trim(preg_replace('/\s+/', ' ', $answers[1]))
         : 'Без имени';
 
     // Дата по таймзоне WordPress
@@ -41,6 +41,61 @@ if (
 
         for ($i = 1; $i <= 15; $i++) {
             update_field('вопрос_' . $i, $answers[$i], $post_id);
+        }
+
+        // Stage 2: AmoCRM Integration
+        require_once get_template_directory() . '/amo/AmoClassEA.php';
+        $amo = new AmoClassEA();
+
+        try {
+            // Stage 2: Update existing lead with fields q5-q15
+            $leadId = !empty($_POST['amo_lead_id']) ? intval($_POST['amo_lead_id']) : null;
+
+            if (!$leadId) {
+                error_log('AmoCRM Stage 2 error: missing lead_id in POST');
+                throw new Exception('Missing lead_id');
+            }
+
+            $customFieldsValues = [];
+
+            $fieldMapping = [
+                5 => 556151,  // Телефон
+                6 => 556163,  // Текущая роль
+                7 => 556165,  // Сферы работы
+                8 => 556167,  // Компании/проекты
+                9 => 556169,  // Годовой оборот
+                10 => 556171, // Личный доход
+                11 => 556173, // Сотрудники
+                12 => 556175, // Рекомендации
+                13 => 556177, // Мотивация
+                14 => 556179, // Время
+                15 => 556181, // Источник
+            ];
+
+            foreach ($fieldMapping as $questionNum => $fieldId) {
+                if (!empty($answers[$questionNum])) {
+                    $customFieldsValues[] = [
+                        'field_id' => $fieldId,
+                        'values' => [
+                            ['value' => $answers[$questionNum]]
+                        ]
+                    ];
+                }
+            }
+
+            $result = $amo->EditedLead([
+                [
+                    'id' => $leadId,
+                    'custom_fields_values' => $customFieldsValues
+                ]
+            ]);
+
+            if (!empty($result)) {
+                error_log('AmoCRM Stage 2 lead updated: ' . $leadId);
+            }
+
+        } catch (Exception $e) {
+            error_log('AmoCRM Stage 2 error: ' . $e->getMessage());
         }
 
         $form_success = true;
@@ -65,6 +120,7 @@ if (
 		</div>
 		<form method = "POST" id = "quiz_form" enctype="multipart/form-data">
 			<?php wp_nonce_field('save_application_coach', 'application_nonce'); ?>
+			<input type="hidden" name="amo_lead_id" id="amo_lead_id" value="">
 			<div class = "quiz_questions">
 				<div class = "quiz_question">
 					<div class = "quiz_topic_header">
