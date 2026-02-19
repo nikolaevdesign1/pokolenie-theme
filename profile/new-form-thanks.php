@@ -75,6 +75,18 @@ $sucsess =  0;
             <div class="personal-header">
                 <div class = "title">Личный кабинет</div>
             </div>
+			<div class = "mobile_filter">
+				<div class = "mobile_filter_header">
+					Этап 4/4
+				</div>
+				<div class = "mobile_filter_button">
+					Меню анкеты <svg xmlns="http://www.w3.org/2000/svg" width="17" height="9" viewBox="0 0 17 9" fill="none">
+  <line x1="0.698317" y1="0.700121" x2="16.0613" y2="0.700121" stroke="#363636" stroke-width="1.39663" stroke-linecap="round"/>
+  <line x1="0.698317" y1="4.19231" x2="16.0613" y2="4.19231" stroke="#363636" stroke-width="1.39663" stroke-linecap="round"/>
+  <line x1="0.698317" y1="7.6845" x2="11.1731" y2="7.6845" stroke="#363636" stroke-width="1.39663" stroke-linecap="round"/>
+</svg>
+				</div>
+			</div>
 			  <div class="personal-flex">
                 
 				   <div class="personal-sidebar">

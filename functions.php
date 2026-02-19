@@ -224,6 +224,19 @@ function register_post_types(){
     'supports'      => ['title'],
     'capability_type' => 'post',
 ]);
+	
+	register_post_type('application_coaches', [
+    'labels' => [
+        'name'          => 'Заявки наставников',
+        'singular_name' => 'Заявка наставников',
+    ],
+    'public'        => false,
+    'show_ui'       => true,
+    'show_in_menu'  => true,
+    'menu_icon'     => 'dashicons-clipboard',
+    'supports'      => ['title'],
+    'capability_type' => 'post',
+]);
 
 }
 

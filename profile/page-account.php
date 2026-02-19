@@ -32,7 +32,7 @@ $passport = $group['passport'];
 
 $date_group = get_field('data', 'user_' . $user_id);
 	
-$name = $group_age['name'];
+$name1 = $group_age['name'];
 $formentor = $date_group['formentor'];
 
 $q2 = $date_group['question_2'];
@@ -86,6 +86,19 @@ $sucsess =  0;
                 <div class = "title">Личный кабинет</div>
             </div>
             
+			<div class = "mobile_filter">
+				<div class = "mobile_filter_header">
+					Этап 2/4
+				</div>
+				<div class = "mobile_filter_button">
+					Меню анкеты <svg xmlns="http://www.w3.org/2000/svg" width="17" height="9" viewBox="0 0 17 9" fill="none">
+  <line x1="0.698317" y1="0.700121" x2="16.0613" y2="0.700121" stroke="#363636" stroke-width="1.39663" stroke-linecap="round"/>
+  <line x1="0.698317" y1="4.19231" x2="16.0613" y2="4.19231" stroke="#363636" stroke-width="1.39663" stroke-linecap="round"/>
+  <line x1="0.698317" y1="7.6845" x2="11.1731" y2="7.6845" stroke="#363636" stroke-width="1.39663" stroke-linecap="round"/>
+</svg>
+				</div>
+			</div>
+			
             <div class="personal-flex">
                 <div class="personal-sidebar">
                     <div class="personal-sidebar-container">
@@ -256,12 +269,20 @@ $sucsess =  0;
                                 </label>
                                 <label>
                                     <p>3. Ваш телефон</p>
-                                    <input type="text" name="phone" placeholder = "8(___)___-__-__" value = "<?php echo $phone?>" required>
+                                    <input type="text" name="phone" placeholder = "8(___)___-__-__" value = "<?php echo $phone?>" required>		
                                 </label>
                                 <label>
                                     <p>4. Ник в Telegram</p>
                                     <input type="text" placeholder = "@" name="telegram" value = "<?php echo $telegram?>" required>
+									<div class = "mistake">
+										<p>
+											Мы не нашли ваш telegram аккаунт в нашем сообществе. 
+										</p>
+									</div>
                                 </label>
+								<a href = "#" class = "telegram_form"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="15" viewBox="0 0 18 15" fill="none">
+  <path fill-rule="evenodd" clip-rule="evenodd" d="M1.23244 6.46938C6.06328 4.35919 9.27924 2.95703 10.8941 2.27678C15.4903 0.34707 16.4565 0.0138828 17.0776 0C17.2156 0 17.5193 0.0277658 17.7263 0.194359C17.892 0.333187 17.9334 0.513664 17.961 0.652491C17.9886 0.791319 18.0162 1.08286 17.9886 1.30498C17.7401 3.94271 16.6635 10.3427 16.1114 13.2858C15.8768 14.5353 15.4213 14.9518 14.9796 14.9934C14.0135 15.0767 13.2819 14.3548 12.3572 13.744C10.8941 12.786 10.0798 12.1891 8.65813 11.2451C7.01565 10.1622 8.07843 9.56524 9.017 8.59344C9.26544 8.34355 13.5028 4.45637 13.5856 4.1093C13.5994 4.06766 13.5994 3.90106 13.5028 3.81776C13.4062 3.73447 13.2681 3.76223 13.1577 3.79C13.0059 3.81777 10.6871 5.37264 6.1737 8.44073C5.51118 8.89886 4.91768 9.12099 4.37939 9.10711C3.78588 9.09322 2.65409 8.77392 1.79834 8.49626C0.763154 8.16308 -0.0649904 7.9826 0.00402163 7.39952C0.0454289 7.0941 0.459501 6.78868 1.23244 6.46938Z" fill="white"/>
+</svg>Запустить Telegram-бот</a>
                                 <div class="form-sub-info">
                                     <p><span>Важно!</span> Убедитесь, что вы указали корректный Telegram-никнейм. Именно на него прийдет сообщение о статусе участия.
 
